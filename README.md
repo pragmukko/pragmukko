@@ -6,3 +6,6 @@ Pragma:
 
 Ukko:
   https://en.wikipedia.org/wiki/Ukko
+  
+Akka:
+  https://en.wikipedia.org/wiki/Akka_(spirit)
