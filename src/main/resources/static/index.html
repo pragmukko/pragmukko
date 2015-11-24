@@ -1,0 +1,344 @@
+<html>
+<head>
+    <!--<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script> -->
+    <script src="codemirror.js"></script>
+    <script src="addon/matchbrackets.js"></script>
+    <script src="mode/javascript/javascript.js"></script>
+    <script src="jquery.js"></script>
+    <script src="bootstrap.js"></script>
+
+    <link href="bootstrap.css" rel="stylesheet">
+    <link href="codemirror.css" rel="stylesheet">
+
+    <style>
+        .CodeMirror { height: auto; border: 1px solid #ddd; }
+        .CodeMirror-scroll { max-height: 200px; }
+        .CodeMirror pre { padding-left: 7px; line-height: 1.25; }
+
+        .linear-stage {
+        margin: 1em;
+        }
+
+    </style>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script>
+            
+            window.requestAnimFrame = (function(){
+                return  window.requestAnimationFrame       ||
+                        window.webkitRequestAnimationFrame ||
+                        window.mozRequestAnimationFrame    ||
+                        function( callback ){
+                            window.setTimeout(callback, 1000 / 60);
+                        };
+                })();
+            
+            function CircularBuff(size) {
+                var arr = Array(size)
+                
+                this.getSize = function() {return size;}
+                
+                this.push = function(obj) {
+                    arr.push(obj);
+                    if (arr.length > size) {
+                        arr.shift();
+                    }
+                }
+                
+                this.get = function(n) { return arr[n]; }
+                
+                this.last = function() {
+                    return arr[arr.length - 1];
+                }
+            }
+            
+            function drawLinear(vxctx, w, h, buff, color) {
+                var padding = 5;
+                var max = 0,  factor, step = w / buff.getSize(); 
+                
+                vxctx.clearRect(0, 0, w, h);
+                
+                h = h - padding;
+                
+                for ( var i = 0; i < buff.getSize(); i++ ) {
+                    var item = buff.get(i);
+                    if (max < item) {
+                        max = item
+                    }
+                }
+                
+                if (max !== 0)
+                    factor = h / max;
+                else
+                    factor = 0;
+                
+                vxctx.beginPath();
+                vxctx.moveTo(0, h - buff.get(0) * factor);
+                var xpos = 0;
+                for (var i = 1; i < buff.getSize(); i++ ) {
+                    vxctx.lineTo(xpos, h - buff.get(i) * factor);
+                    xpos += step;
+                }
+                vxctx.strokeStyle =  color || "#ff8000";
+                vxctx.stroke();
+            }
+
+            var selectedId = "", editor, glReader;
+            
+            function DataReader(id) {
+                
+                var socket, drawCicle = false;
+                
+                var canvas = $("#stage")[0];
+                var ctx = canvas.getContext("2d");
+                
+                var vx_canvas = $("#vx-stage")[0];
+                var vx_ctx = vx_canvas.getContext("2d");
+                
+                var vy_canvas = $("#vy-stage")[0];
+                var vy_ctx = vy_canvas.getContext("2d");
+               
+                var vz_canvas = $("#vz-stage")[0];
+                var vz_ctx = vz_canvas.getContext("2d");
+               
+                
+                var canvasCenterY = canvas.height / 2, canvasCenterX = canvas.width / 2,
+                    padding = 10, minDistance = 5;
+                
+                drawCicle = true;
+                //alert("ws://" + window.location.host + "/ws/" + id)
+                socket = new WebSocket("ws://" + window.location.host + "/ws/" + id);
+                
+                var data = [], fac = 1, maxX = 0, maxY = 0, fx, fy,
+                    vxbuff = new CircularBuff(60),
+                    vybuff = new CircularBuff(60),
+                    vzbuff = new CircularBuff(60);
+                socket.onmessage = function(msg) {
+                    var jsObj = JSON.parse(msg.data);
+                    if (jsObj.MAVType != "msg_local_position_ned") {
+                        return;
+                    }
+                    
+                    if (fx == undefined) {
+                        fx = jsObj.x;
+                    }
+                    
+                    if (fy == undefined) {
+                        fy = jsObj.y;
+                    }
+                    
+                    var xy = {
+                        x: jsObj.x - fx,
+                        y: jsObj.y - fy,
+                        rx: jsObj.x,
+                        ry: jsObj.y,
+                        rz: jsObj.z,
+                    }
+                    
+                    vxbuff.push(Math.abs(jsObj.vx));
+                    vybuff.push(Math.abs(jsObj.vy));
+                    vzbuff.push(Math.abs(jsObj.vz));
+                    
+                    if ( Math.abs(xy.x) > maxX ) {
+                        maxX = Math.abs(xy.x);
+                    }
+                    
+                    if (Math.abs(xy.y) > maxY) {
+                        maxY = Math.abs(xy.y)
+                    }
+                    
+                    fac = Math.abs((canvasCenterX - padding) / Math.max(maxX, maxY));
+                    
+                    data.push(xy);
+                }
+                
+                var plot = function() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if(data.length != 0) {
+                        
+                        var acumulator = [];
+                        data.reduce(function(acc, item) {
+                            if (acc.length == 0) {
+                                acc.push(item);
+                                return acc;
+                            }
+                            var last = acc[acc.length - 1];
+                            if ( (Math.abs(item.x - last.x)) >= (minDistance / fac) ||
+                                (Math.abs(item.y - last.y)) >= (minDistance / fac) 
+                            ) {
+                                acc.push(item);
+                            }
+                            return acc;
+                        }, acumulator);
+                        data = acumulator;
+                        
+                        var plotData = data.map(function(item) {
+                            return { 
+                                x: (item.x * fac) + canvasCenterX, 
+                                y: (item.y * fac) + canvasCenterY
+                            } 
+                        });
+                        var pathBegin = plotData[0]
+                        ctx.beginPath();
+                        ctx.moveTo(pathBegin.x, pathBegin.y);
+                        for (var i = 1; i < plotData.length; i++ ) {
+                            ctx.lineTo(plotData[i].x, plotData[i].y);
+                        }
+                        ctx.strokeStyle = "#0000ff"
+                        ctx.stroke();
+                    }
+                    
+                    drawLinear(vx_ctx, vx_canvas.width, vx_canvas.height, vxbuff);
+                    drawLinear(vy_ctx, vy_canvas.width, vy_canvas.height, vybuff, "#80ff00");
+                    drawLinear(vz_ctx, vz_canvas.width, vz_canvas.height, vzbuff, "#CC00CC");
+                    
+                    if (drawCicle === true)
+                         //setTimeout(arguments.callee, 50);
+                        requestAnimFrame(arguments.callee);
+                }
+                
+                plot();
+                
+                
+                var refreshTable = function() {
+                    if (!!data.length) {
+                        var xyz = data[data.length - 1];
+                        $(".x-position").text(xyz.rx.toFixed(2));
+                        $(".y-position").text(xyz.ry.toFixed(2));
+                        $(".z-position").text(xyz.rz.toFixed(2));
+                        
+                        $(".x-velocity").text(vxbuff.last().toFixed(2));
+                        $(".y-velocity").text(vybuff.last().toFixed(2));
+                        $(".z-velocity").text(vzbuff.last().toFixed(2));
+                    }
+                    if (drawCicle === true)
+                        setTimeout(arguments.callee, 500);
+                }
+                refreshTable();
+                
+                this.stop = function() {
+                    drawCicle = false;
+                    socket.close();
+                }
+        
+            }
+            
+            function refreshDeviceList() {
+                $.getJSON("http://" + window.location.host + "/cmd/list", function(data) {
+                    $(".dev-list").html("");
+                    
+                    var html = data.reduce(function(acc,item) {
+                        var id = item.id == "" ? "Ground controll" : item.id
+                        return acc + '<div><a href="#" onclick="onDeviceSelected(' + "'" + id + "'" +')">' + id + '</a></div>'; 
+                    }, "");
+                    $(".dev-list").html(html);
+                });
+                
+                setTimeout(refreshDeviceList, 1000);
+            }
+            
+            function onDeviceSelected(id) {
+                 if (!!glReader) {
+                    glReader.stop();
+                }
+                glReader = new DataReader(id);
+                selectedId = id;
+            }
+            
+            function submitCommand() {
+                $.post('http://' + window.location.host + '/cmd/send/' + selectedId, editor.getValue(), function(data) {
+                   // alert(JSON.stringify(data));
+                }).fail(function(err) {
+                   alert(JSON.stringify(err)); 
+                });
+            }
+            
+            $(function() {
+                
+                editor = CodeMirror.fromTextArea($("#json-command")[0], {
+                     lineNumbers: true,
+                     mode:  "javascript",
+                     matchBrackets: true
+                });
+                
+                refreshDeviceList();
+                
+            });
+        </script>
+</head>
+
+<body style="height: 100%">
+
+<div class="row" style="height: 100%">
+    <div class="col-md-5">
+        <div class="panel panel-default">
+            <div class="panel-heading">Trajectory</div>
+            <div class="panel-body">
+                <canvas id="stage" height="400" width="400"></canvas>
+            </div>
+        </div>
+
+        <div class="panel panel-default">
+            <div class="panel-heading">Send command</div>
+            <div class="panel-body">
+                <textarea id="json-command" style="border:1px solid #c0c0c0; margin: 1em"></textarea>
+                <button class="btn-success" onclick="submitCommand()">Submith</button>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-md-5">
+        <div class="panel panel-default">
+            <div class="panel-heading">Telemetry</div>
+            <div class="panel-body">
+                <div class="linear-stage">
+                    <canvas id="vx-stage" height="40" width="400"></canvas>
+                </div>
+                <div class="linear-stage">
+                    <canvas id="vy-stage" height="40" width="400"></canvas>
+                </div>
+                <div class="linear-stage">
+                    <canvas id="vz-stage" height="40" width="400"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel panel-default">
+            <div class="panel-heading">Position</div>
+            <div class="panel-body">
+                <table class="table-striped" style="width: 100%;">
+                    <thead><tr><th></th> <th>X</th> <th>Y</th> <th>Z</th></tr></thead>
+                    <tr>
+                        <td>Position</td>
+                        <td><span class="x-position"></span></td>
+                        <td><span class="y-position"></span></td>
+                        <td><span class="z-position"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Velocity</td>
+                        <td><span class="x-velocity"></span></td>
+                        <td><span class="y-velocity"></span></td>
+                        <td><span class="z-velocity"></span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel panel-default">
+            <div class="panel-heading">Video</div>
+            <div class="panel-body">
+                <img src="" alt="No stream available" width="320" height="240">
+            </div>
+        </div>
+
+    </div>
+    <div class="col-md-2" style="height: 100%; background: ">
+        <div class="dev-list">
+        </div>
+    </div>
+</div>
+
+</body>
+
+</html>

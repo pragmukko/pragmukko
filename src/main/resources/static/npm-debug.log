@@ -1,0 +1,29 @@
+0 info it worked if it ends with ok
+1 verbose cli [ '/usr/local/Cellar/node/5.0.0/bin/node',
+1 verbose cli   '/usr/local/bin/npm',
+1 verbose cli   'install',
+1 verbose cli   '-g',
+1 verbose cli   'local-web-server',
+1 verbose cli   '--save-dev' ]
+2 info using npm@3.3.9
+3 info using node@v5.0.0
+4 verbose stack Error: EPERM: operation not permitted, mkdir '/usr/global'
+4 verbose stack     at Error (native)
+5 verbose cwd /Users/max/Desktop/dev/Swarmakka/src/main/resources/static
+6 error Darwin 15.0.0
+7 error argv "/usr/local/Cellar/node/5.0.0/bin/node" "/usr/local/bin/npm" "install" "-g" "local-web-server" "--save-dev"
+8 error node v5.0.0
+9 error npm  v3.3.9
+10 error path /usr/global
+11 error code EPERM
+12 error errno -1
+13 error syscall mkdir
+14 error Error: EPERM: operation not permitted, mkdir '/usr/global'
+14 error     at Error (native)
+14 error  { [Error: EPERM: operation not permitted, mkdir '/usr/global']
+14 error   errno: -1,
+14 error   code: 'EPERM',
+14 error   syscall: 'mkdir',
+14 error   path: '/usr/global' }
+15 error Please try running this command again as root/Administrator.
+16 verbose exit [ -1, true ]
