@@ -1,17 +1,21 @@
 package http
 
-import actors.{WsActor, SseActor, WebSocketActor, Messages}
+import actors._
 import actors.Messages._
 import akka.actor.{Cancellable, Props, ActorRef, ActorSystem}
+import akka.cluster.Cluster
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.{CurrentTopics, GetTopics, Send}
 import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Headers`, `Access-Control-Max-Age`, `Access-Control-Allow-Credentials`}
 import akka.http.scaladsl.model.ws.{TextMessage, UpgradeToWebsocket, Message}
 import akka.http.scaladsl.server.{Directives, ExpectedWebsocketRequestRejection}
 import akka.stream.actor.ActorSubscriberMessage.OnComplete
+import akka.util.ByteString
 import de.heikoseeberger.akkasse.{MediaTypes, WithHeartbeats, ServerSentEvent, EventStreamMarshalling}
 import utils.MemberUtils
-import utils.sse.EventStreamTypedMarshalling
+//import utils.sse.EventStreamTypedMarshalling
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Future, ExecutionContext}
 
 //import akka.http.scaladsl.server.directives.HeaderDirectives._
 //import akka.http.scaladsl.server.directives.RouteDirectives._
@@ -32,9 +36,14 @@ import spray.json.{JsArray, JsValue, JsonParser, ParserInput}
 /**
  * Created by yishchuk on 29.10.2015.
  */
-class SwarmHttpService(val manager: ActorRef)(implicit val system: ActorSystem, val config: Config) extends CorsSupport with EventStreamMarshalling {
+class SwarmHttpService(managerOpt: Option[ActorRef] = None)(implicit val system: ActorSystem, val config: Config) extends CorsSupport with EventStreamMarshalling {
   implicit val executor = system.dispatcher
   implicit val materializer = ActorMaterializer()
+  val cluster = Cluster(system)
+
+  val mediator = DistributedPubSub(system).mediator
+
+  SwarmDiscovery.discoverAndJoin()
 
   import akka.pattern.ask
   import akka.util.Timeout
@@ -85,7 +94,7 @@ class SwarmHttpService(val manager: ActorRef)(implicit val system: ActorSystem, 
         get {
           optionalHeaderValueByType[UpgradeToWebsocket]() {
             case Some(upgrade) =>
-              val source = Source.actorPublisher[Message](Props(classOf[WsActor], manager, memberId))
+              val source = Source.actorPublisher[Message](Props(classOf[WsActor], memberId))
               val sinkActor = system.actorOf(Props(classOf[WebSocketActor], memberId))
               val sink = Sink.actorRef(sinkActor, OnComplete)
 
@@ -95,10 +104,10 @@ class SwarmHttpService(val manager: ActorRef)(implicit val system: ActorSystem, 
         }
       } ~
       path ("sse" / Segment) { memberId =>
-        import EventStreamTypedMarshalling._
+        //import EventStreamTypedMarshalling._
         get {
           complete {
-            Source.actorPublisher(Props(classOf[SseActor], manager, memberId)).map(jsToSseMessage)
+            Source.actorPublisher(Props(classOf[SseActor], memberId)).map(jsToSseMessage)
           }
 
         }
@@ -111,24 +120,31 @@ class SwarmHttpService(val manager: ActorRef)(implicit val system: ActorSystem, 
       pathPrefix("cmd") {
         pathPrefix("history" / Segment) { memberId =>
           get {
-            val res = manager ? TelemetryHistory(memberId)
-            complete { res.mapTo[List[TelemetryRaw]] }
+            complete {
+              managerOpt match {
+                case Some(manager) => (manager ? TelemetryHistory(memberId)).mapTo[List[TelemetryRaw]]
+                case None => List.empty[TelemetryRaw]
+              }
+            }
           }
         } ~
         pathPrefix ("mlhistory" / Segment) { memberId =>
           get {
-            val res = manager ? MavLinkTelemetryHistory(memberId)
             complete {
-              res.mapTo[List[MavLinkTelemetry]].map {
-                lst:List[MavLinkTelemetry] => JsArray(lst.map(p => MAVlinkJsonSerrializer.MAVLink2Json(p.message)): _*)
+              managerOpt match {
+                case Some(manager) =>
+                  val res = manager ? MavLinkTelemetryHistory(memberId)
+                  res.mapTo[List[MavLinkTelemetry]].map {
+                    lst:List[MavLinkTelemetry] => JsArray(lst.map(p => MAVlinkJsonSerrializer.MAVLink2Json(p.message)): _*)
+                  }
+                case None => List.empty[MavLinkTelemetry]
               }
             }
           }
         } ~
         path("list") {
           get {
-            val res = manager ? ListMembers
-            complete { res.mapTo[List[Member]] }
+            complete { cluster.state.members.toList }
           }
         } ~
         pathPrefix("send" / Segment) { memberId =>
@@ -136,7 +152,9 @@ class SwarmHttpService(val manager: ActorRef)(implicit val system: ActorSystem, 
             decodeRequest {
               entity(as[String]) { strCmd =>
                 val batch = MAVlinkJsonSerrializer.toMavlik(JsonParser(ParserInput(strCmd)))
-                manager ! BatchCmd(memberId, batch)
+                val buff = batch.foldLeft(ByteString()) { (acc, item) => acc ++ ByteString(item.encode()) }
+                mediator ! Send(s"/user/embedded.$memberId", BinnaryCmd(buff), true)
+                //manager ! BatchCmd(memberId, batch)
                 complete(OK)
               }
             }

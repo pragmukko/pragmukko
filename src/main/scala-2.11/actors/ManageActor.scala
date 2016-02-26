@@ -18,12 +18,20 @@ import scala.concurrent.ExecutionContext.Implicits.global
 /**
  * Created by max on 10/27/15.
  */
-class ManageActor extends Actor with ActorLogging with ConfigProvider {
+class ManageActor extends Actor with ActorLogging with ConfigProvider with SwarmDiscovery {
 
   import MemberUtils._
   val cluster = Cluster(context.system)
 
-  cluster.joinSeedNodes(List(Address("akka.tcp", config.getString("akka-sys-name"), NetUtils.localHost.getHostAddress, config.getInt("akka.remote.netty.tcp.port"))))
+  val selfJoin = context.system.scheduler.scheduleOnce(20 seconds) {
+    cluster.joinSeedNodes(List(Address("akka.tcp", config.getString("akka-sys-name"), NetUtils.localHost.getHostAddress, config.getInt("akka.remote.netty.tcp.port"))))
+    if (config.getBoolean("discovery.start-responder")) {
+      SwarmDiscovery.startResponder(context.system, config)
+    }
+    context become receiveInCluster
+  }
+
+  startDiscovery()
 
   override def preStart(): Unit = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
@@ -33,14 +41,17 @@ class ManageActor extends Actor with ActorLogging with ConfigProvider {
   // YI !!! very simple implementation
   val channels = mutable.HashMap.empty[String, ActorRef]
 
+  private def channelUnchecked(id: String) = channels.getOrElseUpdate(id, {
+    val channel = context.actorOf(Props[TelemetryActor], s"channel-for-$id"); println(s"channel created: $channel"); channel
+  })
+
   def channelFor(id: String): Option[ActorRef] = {
-    if (memberExists(id))
-      Some(channels.getOrElseUpdate(id, {val history = context.actorOf(Props[TelemetryActor], s"channel-for-$id"); println(s"history created: $history"); history}))
+    if (memberExists(id)) Some(channelUnchecked(id))
     else None
   }
 
   def channelFor(member: Member): Option[ActorRef] = {
-    member.id.flatMap { id => channelFor(id) }
+    member.id.map { id => channelUnchecked(id) }
   }
 
   def historyFutureFor(id: String): Future[ActorRef] = {
@@ -68,10 +79,23 @@ class ManageActor extends Actor with ActorLogging with ConfigProvider {
   }
 
   def receive = {
+    case DiscoveredSeedAddresses(seedAddresses: Array[Address]) =>
+      selfJoin.cancel()
+      cluster.joinSeedNodes(seedAddresses.toList)
+      if (config.getBoolean("discovery.start-responder")) {
+        SwarmDiscovery.startResponder(context.system, config)
+      }
+      context become receiveInCluster
+  }
+
+  def receiveInCluster: Receive = {
+
     case MemberUp(member) =>
       log.info("Member is Up: {}, roles: [{}]", member.address, member.roles mkString ", ")
       if (member.hasRole("embedded")) {
-        channelFor(member) foreach { m2a(member) ! GCDiscover(_) }
+        channelFor(member) foreach {
+          m2a(member) ! GCDiscover(_)
+        }
       }
 
     case UnreachableMember(member) =>

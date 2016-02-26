@@ -3,6 +3,8 @@ package utils
 import java.net.{InetAddress, NetworkInterface}
 
 import akka.actor.Address
+import com.typesafe.config.Config
+import org.slf4j.LoggerFactory
 
 /**
  * Created by yishchuk on 12.11.2015.
@@ -11,14 +13,26 @@ object NetUtils {
 
   import scala.collection.JavaConverters._
 
-  lazy val broadcastAddress = {
-    val bcast = NetworkInterface.getNetworkInterfaces.asScala.toList flatMap { ni =>
-      if (ni.isLoopback) None
+  def logger = LoggerFactory.getLogger(this.getClass.getSimpleName)
+
+  def broadcastAddress(cfg:Config) : InetAddress = {
+    val path = "akka.remote.netty.tcp.hostname"
+    val addr:InetAddress = {
+      if (cfg.hasPath(path))
+        InetAddress.getByName(cfg.getString(path))
       else {
-        ni.getInterfaceAddresses.asScala flatMap { ia => Option(ia.getBroadcast) }
+        logger.info("Used local address " + localHost)
+        localHost
       }
     }
-    bcast.head
+
+    NetworkInterface.getNetworkInterfaces.asScala.toList.flatMap { ni =>
+      ni.getInterfaceAddresses.asScala.toList
+    }
+      .filter(ia => ia.getAddress == addr)
+      .map(ia =>  ia.getBroadcast)
+      .head
+
   }
 
   lazy val localHost = {
@@ -31,7 +45,6 @@ object NetUtils {
       }
     }
     val localHostName = local.next()
-    println(s"localhost: ${localHostName.getHostAddress}")
     localHostName
   }
 

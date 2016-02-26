@@ -6,6 +6,8 @@ import actors.Messages._
 import akka.actor.SupervisorStrategy.{Restart, Escalate}
 import akka.actor._
 import akka.cluster.Cluster
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.Put
 import akka.event.LoggingAdapter
 import akka.util.ByteString
 import com.typesafe.config.Config
@@ -20,14 +22,19 @@ import scala.reflect.ClassTag
 
 case class ExtReceiver(rcvr: BaseEmbeddedActor => PartialFunction[Any, Unit])
 
-class BaseEmbeddedActor(hardwareGateClass:Option[Class[_ <: Actor]]) extends Actor with ActorLogging with ConfigProvider {
+class BaseEmbeddedActor(hardwareGateClass:Option[Class[_ <: Actor]]) extends Actor with ActorLogging with ConfigProvider with SwarmDiscovery {
 
   private val hardwareGate:Option[ActorRef] = initHardwareGateActor
 
-  private val clusterDiscoverer = context.actorOf(Props[UdpDiscoverer], "clusterDiscoverer")
+//  private val clusterDiscoverer = context.actorOf(Props[UdpDiscoverer], "clusterDiscoverer")
+//
+//
+//  clusterDiscoverer ! DiscoverSwarmCluster
 
-  clusterDiscoverer ! DiscoverSwarmCluster
+  val mediator = DistributedPubSub(context.system).mediator
+  mediator ! Put(self)
 
+  startDiscovery()
   context become baseReceive
 
   override val supervisorStrategy =
@@ -40,8 +47,8 @@ class BaseEmbeddedActor(hardwareGateClass:Option[Class[_ <: Actor]]) extends Act
   private def baseReceive: Receive = {
     val baseFnc:Receive = {
 
-      case seedAddresses: Array[Address] =>
-        Cluster(context.system).joinSeedNodes(seedAddresses.toList)
+    case DiscoveredSeedAddresses(seedAddresses: Array[Address]) =>
+      Cluster(context.system).joinSeedNodes(seedAddresses.toList)
 
       case GCDiscover(telemetryHistory) =>
         println("Ground control found")
@@ -51,7 +58,7 @@ class BaseEmbeddedActor(hardwareGateClass:Option[Class[_ <: Actor]]) extends Act
             println("Connected to ground control, processing started.")
 
           case _ =>
-            log.warning("Attempt to register GroundControl on hardware events, but hw gate doesn't created ")
+            log.warning("Attempt to register GroundControl on hardware events, but hw gate isn't created ")
             sender() ! Unsupported
         }
 

@@ -2,7 +2,7 @@ import actors.BaseEmbeddedActor
 import actors.Messages.{DevDiscover, MavLinkTelemetry, GCDiscover}
 import akka.actor.{ActorRef, Actor}
 import builders.EmbeddedNode
-import mavlink.pixhawk.{SetPosition, Position, DroneCommands}
+import mavlink.pixhawk.{SetPositionLocal, PositionLocal, DroneCommands}
 import scala.concurrent.duration._
 
 /**
@@ -28,33 +28,37 @@ class FakeDroneActor(act:Option[Class[_ <: Actor]]) extends BaseEmbeddedActor(No
 
   var startTime = 0l
 
+  var gcList = List.empty[ActorRef]
+
+  startTime = System.currentTimeMillis()
+  context.system.scheduler.schedule(100 milliseconds, 100 milliseconds, self, Tick)
+
   override def receive:Receive = {
 
     case GCDiscover(gc) =>
-      startTime = System.currentTimeMillis()
-      context.system.scheduler.schedule(100 milliseconds, 100 milliseconds, self, Tick)
       println("GC discover")
       gc ! DevDiscover
-      context become gcHandler(gc)
+      gcList = gc :: gcList
 
-  }
 
-  def gcHandler(groundControl:ActorRef):Receive = {
     case Tick =>
       val currentTime = System.currentTimeMillis()
-      val delta = (currentTime - startTime) / 1000f  // ms -> s
+      val delta = (currentTime - startTime) / 1000f // ms -> s
       startTime = currentTime
 
-      xyz = vxyz.map(_ * delta).zip(xyz).map( p => p._1 + p._2)
-      val pos = Position(xyz(0), xyz(1), xyz(2), vxyz(0), vxyz(1), vxyz(2))
+      xyz = vxyz.map(_ * delta).zip(xyz).map(p => p._1 + p._2)
+      val pos = PositionLocal(xyz(0), xyz(1), xyz(2), vxyz(0), vxyz(1), vxyz(2))
 
-      groundControl ! Array(MavLinkTelemetry(pos.dueProtocol, ""))
+      gcList foreach (_ ! Array(MavLinkTelemetry(pos.dueProtocol, "")))
 
-    case SetPosition(pos) =>
+    case SetPositionLocal(pos) =>
       vxyz = List(pos.vx, pos.vy, pos.vz)
 
+
     case "where are you man?" =>
-      sender() ! Position(xyz(0), xyz(1), xyz(2), vxyz(0), vxyz(1), vxyz(2))
+      sender() ! PositionLocal(xyz(0), xyz(1), xyz(2), vxyz(0), vxyz(1), vxyz(2))
+
   }
+
 }
 

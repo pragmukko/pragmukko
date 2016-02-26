@@ -10,7 +10,7 @@ import scala.reflect.ClassTag
 /**
  * Created by yishchuk on 02.11.2015.
  */
-class MessageBatcher[T <: HasSize](cfg: Config)(log: =>LoggingAdapter)(processBatch: Array[T] => Unit)(implicit ct: ClassTag[T]) {
+class MessageBatcher[T <: HasSize](cfg: Config)(log: =>LoggingAdapter)(processBatch: Array[T] => Any)(implicit ct: ClassTag[T]) {
   val NAME = cfg.getString("name")
   val MAX_COUNT = cfg.getInt("max-count")
   val MAX_SIZE = cfg.getMemorySize("max-size-bytes").toBytes

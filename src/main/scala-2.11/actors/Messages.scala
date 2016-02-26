@@ -41,10 +41,15 @@ object Messages {
 
   case object DiscoverSwarmCluster
   case object DiscoverAndJoinSwarmCluster
+  case class DiscoveredSeedAddresses(nodes: Array[Address])
 
   case object Unsupported
   
   case object Start
+
+  case class MoveBy(dx: Float, dy: Float, dz: Float)
+
+  case class MoveByGlobal(dlat: Long, dlon: Long, dalt: Float)
 
 }
 

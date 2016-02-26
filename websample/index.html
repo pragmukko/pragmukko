@@ -1,0 +1,148 @@
+<html>
+    <head>
+        <!--<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script> -->
+        <script src="jquery.js"></script>
+        <script src="bootstrap.js"></script>
+        
+        <link href="bootstrap.css" rel="stylesheet">
+        
+        <script>
+            
+            window.requestAnimFrame = (function(){
+                return  window.requestAnimationFrame       ||
+                        window.webkitRequestAnimationFrame ||
+                        window.mozRequestAnimationFrame    ||
+                        function( callback ){
+                            window.setTimeout(callback, 1000 / 60);
+                        };
+                })();
+
+            var glSocket, drawCicle = false,  selectedId = "";
+            
+            function startReadData(id) {
+                var canvas = $("#stage")[0];
+                var ctx = canvas.getContext("2d");
+                
+                var canvasCenterY = canvas.height / 2, canvasCenterX = canvas.width / 2,
+                    padding = 10, minDistance = 5;
+                
+                drawCicle = true;
+                glSocket = new WebSocket("ws://localhost:9000/ws/" + id);
+                
+                var data = [], facX = 1, facY = 1, maxX = 0, maxY = 0;
+                glSocket.onmessage = function(msg) {
+                    var jsObj = JSON.parse(msg.data);
+                    if (jsObj.MAVType != "msg_local_position_ned") {
+                        return;
+                    }
+                    
+                    var xy = {
+                        x: jsObj.x,
+                        y: jsObj.y
+                    }
+                    
+                    if ( Math.abs(xy.x) > maxX ) {
+                        maxX = Math.abs(xy.x);
+                        facX = Math.abs((canvasCenterX - padding) / maxX);
+                    }
+                    
+                    if (Math.abs(xy.y) > maxY) {
+                        maxY = Math.abs(xy.y)
+                        facY = Math.abs((canvasCenterY - padding) / xy.y);
+                    }
+                    
+                    data.push(xy);
+                }
+                
+                var plot = function() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if(data.length != 0) {
+                        
+                        var acumulator = [];
+                        data.reduce(function(acc, item) {
+                            if (acc.length == 0) {
+                                acc.push(item);
+                                return acc;
+                            }
+                            var last = acc[acc.length - 1];
+                            if ( (Math.abs(item.x - last.x)) >= (minDistance / facX) ||
+                                (Math.abs(item.y - last.y)) >= (minDistance / facY) 
+                            ) {
+                                acc.push(item);
+                            }
+                            return acc;
+                        }, acumulator);
+                        data = acumulator;
+                        
+                        var plotData = data.map(function(item) {
+                            return { 
+                                x: (item.x * facX) + canvasCenterX, 
+                                y: (item.y * facY) + canvasCenterY
+                            } 
+                        });
+                        var pathBegin = plotData[0]
+                        ctx.beginPath();
+                        ctx.moveTo(pathBegin.x, pathBegin.y);
+                        for (var i = 1; i < plotData.length; i++ ) {
+                            ctx.lineTo(plotData[i].x, plotData[i].y);
+                        }
+                        ctx.stroke();
+                    }
+                    
+                    if (drawCicle === true)
+                        requestAnimFrame(arguments.callee);
+                }
+                
+                plot();
+                
+            }
+            
+            function stopReadData() {
+                if (!!glSocket) {
+                    glSocket.close();
+                }
+                drawCicle = false;
+            }
+            
+            function refreshDeviceList() {
+                $.getJSON("http://localhost:9000/cmd/list", function(data) {
+                    $("#device-list").html("");
+                    
+                    var html = data.reduce(function(acc,item) {
+                        return acc + '<a href="#" class="list-group-item" onclick="onDeviceSelected(' + "'" + item.id + "'" +')">' + item.id + '</a>'; 
+                    }, "");
+                    $("#device-list").html(html);
+                });
+                
+                setTimeout(refreshDeviceList, 1000);
+            }
+            
+            function onDeviceSelected(id) {
+                stopReadData();
+                startReadData(id);
+                selectedId = id;
+            }
+            
+            $(function() {
+                
+                refreshDeviceList();
+                
+            });
+        </script>
+    </head>
+    <body>
+        
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <canvas id="stage" height="400" width="400"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <div class="list-group" id="device-list">
+                    </div>    
+                </div>
+            </div>
+        </div>
+        
+    </body>
+</html>

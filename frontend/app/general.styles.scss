@@ -1,0 +1,29 @@
+body {
+    margin: 0;
+    font-size: 16px;
+    font-family: 'Calibri, sans-serif';
+}
+
+.swrn-main-menu {
+    padding-right: 2em;
+    .drones-menu-list {
+        a {display: block;}
+    }
+}
+
+.swrn-main-container {
+    padding: 2em;
+    display: flex;
+    justify-content: center;
+}
+
+// .swrn-content {
+    // flex-grow: 1
+// }
+
+.swrn-code {
+    textarea {
+        margin: 1em 0;
+    }
+}
+

@@ -5,6 +5,7 @@ import java.io.FileOutputStream
 import actors.Messages._
 import akka.actor._
 import akka.util.ByteString
+import spray.json.JsValue
 import utils.{ConfigProvider, CircularBuffer}
 
 /**
@@ -41,6 +42,9 @@ class TelemetryActor extends Actor with ActorLogging with ConfigProvider with St
         mlBuf.push(mlt)
       }
       listeners foreach {_ ! mlts}
+
+    case jsMsgBatch: Array[JsValue] =>
+      listeners foreach { _ ! jsMsgBatch }
 
     case TelemetryHistory(_) =>
       sender() ! buf.getAll

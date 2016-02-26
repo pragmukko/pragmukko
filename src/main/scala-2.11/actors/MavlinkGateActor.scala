@@ -4,6 +4,8 @@ import java.net.InetSocketAddress
 
 import actors.Messages._
 import akka.actor._
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.{Put, Publish}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import org.mavlink.MAVLinkReader
@@ -38,6 +40,10 @@ class MavlinkGateActor extends Actor with Stash with ActorLogging with ConfigPro
       false
   }
 
+  val mediator = DistributedPubSub(context.system).mediator
+
+  mediator ! Put(self)
+
   val memberId = config.getString("member-id")
 
   val remote = new InetSocketAddress(mavlinkHost, mavlinkPort)
@@ -45,7 +51,10 @@ class MavlinkGateActor extends Actor with Stash with ActorLogging with ConfigPro
 
   val rawBatcher = new MessageBatcher[TelemetryRaw](config.getConfig("buffer.raw"))(log)(batch => listeners.foreach(_ ! batch))
 
-  val mlBatcher = new MessageBatcher[MavLinkTelemetry](config.getConfig("buffer.ml"))(log)(batch => listeners.foreach(_ ! batch))
+  val mlBatcher = new MessageBatcher[MavLinkTelemetry](config.getConfig("buffer.ml"))(log)({ batch =>
+    mediator ! Publish(memberId, batch)
+    listeners.foreach(_ ! batch)
+  })
 
   @volatile var listeners = Set.empty[ActorRef]
 

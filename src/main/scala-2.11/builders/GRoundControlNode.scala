@@ -1,6 +1,6 @@
 package builders
 
-import actors.{GCExtentions, UdpDiscoveryResponder, ManageActor}
+import actors.{GCExtentions, SwarmDiscovery, ManageActor}
 import akka.actor.{Actor, ActorSystem, Props}
 import http.SwarmHttpService
 import utils.ConfigProvider
@@ -8,30 +8,30 @@ import utils.ConfigProvider
 /**
  * Created by max on 11/5/15.
  */
-object GRoundControlNode extends ConfigProvider {
+trait GRoundControlNode extends ConfigProvider {
 
   case class GCNodeBuilder[T <: GCExtentions](clusterName:String = config.getString("akka-sys-name"),
                            restEndpoint:Boolean = true,
-                           discovery: Boolean = true,
+                           discovery: Boolean = false,
                            extentions: List[Class[T]] = List.empty[Class[T]]
                             ) {
     def start(): Unit = {
       val system = ActorSystem(clusterName, config)
       val mgr = system.actorOf(Props[ManageActor], "manager")
       if (restEndpoint) {
-        new SwarmHttpService(mgr)(system, config).start()
+        new SwarmHttpService(Some(mgr))(system, config).start()
       }
 
-      extentions.foreach(c => system.actorOf(Props(c)))
+      extentions.foreach(c => system.actorOf(Props(c), c.getSimpleName))
 
-      if (discovery) {
-        system.actorOf(Props[UdpDiscoveryResponder], "discovery-responder")
-      }
+//      if (discovery) {
+//        SwarmDiscovery.startResponder(system, config)
+//      }
     }
 
     def withREST(rest:Boolean) = GCNodeBuilder(this.clusterName, rest, this.discovery, extentions)
 
-    def withDiscovery(disc:Boolean) = GCNodeBuilder(this.clusterName, this.restEndpoint, this.discovery, extentions)
+    //def withDiscovery(disc:Boolean) = GCNodeBuilder(this.clusterName, this.restEndpoint, disc, extentions)
 
     def addExtention[P <: GCExtentions](implicit tag : reflect.ClassTag[P]) = {
       val clzz = tag.runtimeClass.asInstanceOf[Class[T]]
@@ -46,11 +46,13 @@ object GRoundControlNode extends ConfigProvider {
     val system = ActorSystem(clusterName, config)
     val mgr = system.actorOf(Props[ManageActor], "manager")
     if (restEndpoint) {
-      new SwarmHttpService(mgr)(system, config).start()
+      new SwarmHttpService(Some(mgr))(system, config).start()
     }
-    if (discovery) {
-      system.actorOf(Props[UdpDiscoveryResponder], "discovery-responder")
+    if (config.getBoolean("discovery.start-responder")) {
+      SwarmDiscovery.startResponder(system, config)
     }
   }
 
 }
+
+object GRoundControlNode extends GRoundControlNode

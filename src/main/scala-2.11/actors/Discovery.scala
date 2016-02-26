@@ -2,13 +2,15 @@ package actors
 
 import java.net.InetSocketAddress
 
-import actors.Messages.{DiscoverAndJoinSwarmCluster, DiscoverSwarmCluster}
+import actors.Messages.{DiscoveredSeedAddresses, DiscoverAndJoinSwarmCluster, DiscoverSwarmCluster}
 import akka.actor._
 import akka.cluster.Cluster
 import akka.io.IO
 import akka.util.ByteString
+import com.typesafe.config.Config
 import utils.{NetUtils, ConfigProvider}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 /**
  * Created by yishchuk on 12.11.2015.
@@ -60,7 +62,7 @@ class UdpDiscoverer extends Actor with ConfigProvider with ActorLogging {
   }
   def receiveConnection(replyTo: ActorRef, autoJoin: Boolean): Receive = {
     case Udp.Bound(local) =>
-      val broadcast = NetUtils.broadcastAddress
+      val broadcast = NetUtils.broadcastAddress(config)
       log.debug(s"broadcast: $broadcast")
 
       val localSender = sender()
@@ -82,11 +84,58 @@ class UdpDiscoverer extends Actor with ConfigProvider with ActorLogging {
       if (autoJoin) {
         Cluster(context.system).joinSeedNodes(List(address))
       } else {
-        replyTo ! Array(address)
+        replyTo ! DiscoveredSeedAddresses(Array(address))
       }
       self ! Udp.Unbind
     case Udp.Unbind  => socket ! Udp.Unbind
     case Udp.Unbound => context.stop(self)
     case x => println(s"C: $x")
+  }
+}
+
+trait SwarmDiscovery { self: Actor with ActorLogging with ConfigProvider =>
+  private def discoverInternal(discoveryMessage: Any) = {
+
+    if (!config.hasPath("discovery.discoverer"))
+      log.warning(s"Discoverer class is not defined. Using native akka cluster joining system.")
+    else
+      Try(Class.forName(config.getString("discovery.discoverer"))) match {
+        case Success(clazz) =>
+          context.actorOf(Props(clazz)) ! discoveryMessage
+        case Failure(error) =>
+          log.error(s"Discoverer class can't be loaded - can't join cluster: $error")
+          context.system.terminate()
+      }
+  }
+
+  def startDiscovery() = {
+    discoverInternal(DiscoverSwarmCluster)
+  }
+
+  def discoverAndJoin() = {
+    discoverInternal(DiscoverAndJoinSwarmCluster)
+  }
+}
+
+object SwarmDiscovery {
+
+  def startResponder(system: ActorSystem, config: Config) = {
+    Try(Class.forName(config.getString("discovery.responder"))) match {
+      case Success(clazz) =>
+        system.actorOf(Props(clazz), "discovery-responder")
+      case Failure(error) =>
+        println(s"Discoverer class can't be loaded - can't join cluster: $error")
+        system.terminate()
+    }
+  }
+
+  def discoverAndJoin()(implicit system: ActorSystem, config: Config) = {
+    Try(Class.forName(config.getString("discovery.discoverer"))) match {
+      case Success(clazz) =>
+        system.actorOf(Props(clazz)) ! DiscoverAndJoinSwarmCluster
+      case Failure(error) =>
+        println(s"Discoverer class can't be loaded - can't join cluster: $error")
+        system.terminate()
+    }
   }
 }

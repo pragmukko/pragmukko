@@ -1,14 +1,14 @@
 package builders
 
 import actors.Messages.Start
-import actors.{BaseEmbeddedActor, ExtReceiver, MavlinkGateActor}
+import actors.{SwarmDiscovery, BaseEmbeddedActor, ExtReceiver, MavlinkGateActor}
 import akka.actor.{Props, ActorSystem, Actor}
 import utils.ConfigProvider
 
 /**
  * Created by max on 11/6/15.
  */
-object EmbeddedNode extends ConfigProvider {
+trait EmbeddedNode extends ConfigProvider {
 
   type ReceiverType = BaseEmbeddedActor => PartialFunction[Any, Unit]
 
@@ -17,14 +17,19 @@ object EmbeddedNode extends ConfigProvider {
     hardwareGateActor:Option[Class[HW]]) {
 
     def start() = {
-      val system = ActorSystem(config.getString("akka-sys-name"), config)
-      val ref = system.actorOf(Props(embeddedActor, hardwareGateActor),  "embedded")
-      receiver foreach {
-        rcvr =>
-          ref ! ExtReceiver(rcvr)
-          ref ! Start
-      }
+    val system = ActorSystem(config.getString("akka-sys-name"), config)
+    val ref = system.actorOf(Props(embeddedActor, hardwareGateActor), s"embedded.${config.getString("member-id")}")
+    receiver foreach {
+      rcvr =>
+        ref ! ExtReceiver(rcvr)
+        ref ! Start
     }
+
+    if (config.getBoolean("discovery.start-responder")) {
+      SwarmDiscovery.startResponder(system, config)
+      //system.actorOf(Props[UdpDiscoveryResponder], "discovery-responder")
+    }
+  }
 
     def withEmbedded[T <: BaseEmbeddedActor](implicit tag : reflect.ClassTag[T]) = {
       EmbeddedNodeBuilder(this.receiver, tag.runtimeClass.asInstanceOf[Class[T]], this.hardwareGateActor)
@@ -54,3 +59,4 @@ object EmbeddedNode extends ConfigProvider {
 
 }
 
+object EmbeddedNode extends EmbeddedNode

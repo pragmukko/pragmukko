@@ -2,7 +2,7 @@
 
 import actors.ClientActor
 import akka.actor.{ActorSystem, Props}
-import builders.{EmbeddedNode, GRoundControlNode}
+import builders.{WebNode, EmbeddedNode, GRoundControlNode}
 import utils.ConfigProvider
 
 
@@ -15,6 +15,7 @@ object Main extends App with ConfigProvider {
     case "embedded" => initEmbeddedRole()
     case "manager" => initManagerRole()
     case "client" => initClientRole()
+    case "web" => initWebRole()
   }
 
   def initEmbeddedRole() = {
@@ -25,12 +26,18 @@ object Main extends App with ConfigProvider {
   def initManagerRole() = {
     println("Init manager actor")
     GRoundControlNode(restEndpoint = true)
+    //WebNode()
   }
 
   def initClientRole() = {
     println("Init Client actor")
     val system = ActorSystem(config.getString("akka-sys-name"), config)
-    system.actorOf(Props[ClientActor], "client")
+    system.actorOf(Props(classOf[ClientActor], "test"), "client")
+  }
+
+  def initWebRole() = {
+    println("Init web")
+    WebNode()
   }
 }
 

@@ -1,9 +1,11 @@
 package utils
 
 import actors.Messages.DiscoverAndJoinSwarmCluster
-import actors.UdpDiscoverer
+import actors.SwarmDiscovery
 import akka.actor
 import akka.actor._
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.Send
 import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
 import scala.collection.JavaConversions._
@@ -18,6 +20,7 @@ import scala.util.{Failure, Success, Try}
  */
 trait ClusterNode extends ConfigProvider {
 
+  import MemberUtils._
   implicit val duration = 1 second
   implicit val timeout = Timeout(duration)
   implicit val executionContext = scala.concurrent.ExecutionContext.Implicits.global
@@ -25,9 +28,13 @@ trait ClusterNode extends ConfigProvider {
   val system = ActorSystem(config.getString("akka-sys-name"), config)
   val cluster = Cluster(system)
 
-  system.actorOf(Props[UdpDiscoverer]) ! DiscoverAndJoinSwarmCluster
+  SwarmDiscovery.discoverAndJoin()(system, config)
+
+  val mediator = DistributedPubSub(system).mediator
 
   def listMembers = cluster.state.getMembers.toList
+
+  def listMemberIds = cluster.state.getMembers.flatMap { _.id}
 
   def member(index:Int) = {
     val path = listMembers(index).address.toString + "/user/*"
@@ -35,12 +42,13 @@ trait ClusterNode extends ConfigProvider {
   }
 
   def embedded(index:Int) = {
-    val path = listMembers(index).address.toString + "/user/embedded"
+    val member = listMembers(index)
+    val path = s"${member.address.toString}/user/embedded.${member.id.get}"
     Await.result(system.actorSelection(path).resolveOne, 2 second)
   }
 
-  def embedded(m:Member) = {
-    val path = m.address.toString + "/user/embedded"
+  def embedded(member:Member) = {
+    val path = s"${member.address.toString}/user/embedded.${member.id.get}"
     Await.result(system.actorSelection(path).resolveOne, 2 second)
   }
 
@@ -53,7 +61,13 @@ trait ClusterNode extends ConfigProvider {
     }
   }
 
+  def sendToMember(memberId: String)(msg: Any) = {
+    mediator ! Send(s"/user/embedded.$memberId", msg, true)
+  }
 
+  def askMember(memberId: String)(msg: Any): Any = {
+    Await.result(mediator ? Send(s"/user/embedded.$memberId", msg, true), duration)
+  }
 }
 
 

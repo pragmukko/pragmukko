@@ -2,6 +2,8 @@ package actors
 
 import actors.Messages._
 import akka.actor.{PoisonPill, Actor, ActorLogging, ActorRef}
+import akka.cluster.pubsub.DistributedPubSub
+import akka.cluster.pubsub.DistributedPubSubMediator.Send
 import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
 import akka.stream.actor.ActorSubscriberMessage.{OnComplete, OnNext}
@@ -28,14 +30,16 @@ class WebSocketActor(memberId: String) extends Actor with ActorLogging {
 
   }
 }
-class SseActor(producer: ActorRef, memberId: String) extends TelemetryPublisherActor("SSE", msg => MAVlinkJsonSerrializer.MAVLink2Json(msg.message))(producer, memberId)
+class SseActor(memberId: String) extends MediatedTelemetryPublisherActor("SSE", msg => MAVlinkJsonSerrializer.MAVLink2Json(msg.message))(memberId)
 
-class WsActor (producer: ActorRef, memberId: String) extends TelemetryPublisherActor("WS", msg => TextMessage(MAVlinkJsonSerrializer.MAVLink2Json(msg.message).toString()))(producer, memberId)
+class WsActor (memberId: String) extends MediatedTelemetryPublisherActor("WS", msg => TextMessage(MAVlinkJsonSerrializer.MAVLink2Json(msg.message).toString()))(memberId)
 
-class SinkActor(manager: ActorRef, memberId: String) extends Actor with ActorLogging {
+class SinkActor(memberId: String) extends Actor with ActorLogging {
+
+  val mediator = DistributedPubSub(context.system).mediator
 
   override def preStart() = {
-    manager ! TelemetryDiscovery(memberId)
+    //manager ! TelemetryDiscovery(memberId)
   }
 
   def receive = {
@@ -49,6 +53,10 @@ class SinkActor(manager: ActorRef, memberId: String) extends Actor with ActorLog
     case None => println(s"Couldn't find transport for $memberId, exiting"); self ! PoisonPill
 
     case OnComplete => println("COMPLETE")
+
+    case cmd: BinnaryCmd =>
+      println(s"sending $cmd to member '$memberId'")
+      mediator ! Send(s"/user/embedded.$memberId", cmd, true)
 
     case x => println(s"U: $x"); //tele ! x
 

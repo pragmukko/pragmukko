@@ -13,9 +13,9 @@ import scala.language.existentials
 case class Channel[A, B, Mat](source: Source[A,Mat], sink: Sink[B,Mat])
 
 object Channel {
-  def create(manager: ActorRef, memberId: String)(implicit system: ActorSystem) = {
-    val src = Source.actorPublisher[JsValue](Props(classOf[SseActor], manager, memberId))
-    val sinkActor = system.actorOf(Props(classOf[SinkActor], manager, memberId))
+  def create(memberId: String)(implicit system: ActorSystem) = {
+    val src = Source.actorPublisher[JsValue](Props(classOf[SseActor], memberId))
+    val sinkActor = system.actorOf(Props(classOf[SinkActor], memberId))
     val sink = Sink.actorRef(sinkActor, OnComplete)
 
     new Channel(src, sink)
