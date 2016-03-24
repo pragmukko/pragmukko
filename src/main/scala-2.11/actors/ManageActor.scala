@@ -1,3 +1,17 @@
+/*
+* Copyright 2015-2016 Pragmukko Project [http://github.org/pragmukko]
+* Licensed under the Apache License, Version 2.0 (the "License"); you may not
+* use this file except in compliance with the License. You may obtain a copy of
+* the License at
+*
+*    [http://www.apache.org/licenses/LICENSE-2.0]
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations under
+* the License.
+*/
 package actors
 
 import java.net.InetAddress
@@ -35,7 +49,7 @@ class ManageActor extends Actor with ActorLogging with ConfigProvider with Swarm
 
   override def preStart(): Unit = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
-      classOf[MemberEvent], classOf[UnreachableMember])
+      classOf[MemberEvent], classOf[UnreachableMember], classOf[MemberUp])
   }
 
   // YI !!! very simple implementation
@@ -83,7 +97,7 @@ class ManageActor extends Actor with ActorLogging with ConfigProvider with Swarm
       selfJoin.cancel()
       cluster.joinSeedNodes(seedAddresses.toList)
       if (config.getBoolean("discovery.start-responder")) {
-        SwarmDiscovery.startResponder(context.system, config)
+      //  SwarmDiscovery.startResponder(context.system, config)
       }
       context become receiveInCluster
   }

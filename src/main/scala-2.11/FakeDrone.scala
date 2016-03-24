@@ -1,9 +1,24 @@
+/*
+* Copyright 2015-2016 Pragmukko Project [http://github.org/pragmukko]
+* Licensed under the Apache License, Version 2.0 (the "License"); you may not
+* use this file except in compliance with the License. You may obtain a copy of
+* the License at
+*
+*    [http://www.apache.org/licenses/LICENSE-2.0]
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations under
+* the License.
+*/
 import actors.BaseEmbeddedActor
 import actors.Messages.{DevDiscover, MavLinkTelemetry, GCDiscover}
 import akka.actor.{ActorRef, Actor}
 import builders.EmbeddedNode
 import mavlink.pixhawk.{SetPositionLocal, PositionLocal, DroneCommands}
 import scala.concurrent.duration._
+import scala.util.Random
 
 /**
  * Created by max on 11/12/15.
@@ -47,7 +62,7 @@ class FakeDroneActor(act:Option[Class[_ <: Actor]]) extends BaseEmbeddedActor(No
       startTime = currentTime
 
       xyz = vxyz.map(_ * delta).zip(xyz).map(p => p._1 + p._2)
-      val pos = PositionLocal(xyz(0), xyz(1), xyz(2), vxyz(0), vxyz(1), vxyz(2))
+      val pos = PositionLocal(xyz(0), xyz(1), xyz(2), vxyz(0) + Random.nextFloat(), vxyz(1) + Random.nextFloat(), vxyz(2) + Random.nextFloat())
 
       gcList foreach (_ ! Array(MavLinkTelemetry(pos.dueProtocol, "")))
 

@@ -1,3 +1,17 @@
+/*
+* Copyright 2015-2016 Pragmukko Project [http://github.org/pragmukko]
+* Licensed under the Apache License, Version 2.0 (the "License"); you may not
+* use this file except in compliance with the License. You may obtain a copy of
+* the License at
+*
+*    [http://www.apache.org/licenses/LICENSE-2.0]
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations under
+* the License.
+*/
 import actors.Messages.{MoveByGlobal, MoveBy, BinnaryCmd, ListMembers}
 import akka.actor.{ActorRef, Props, Actor, ActorSystem}
 import akka.cluster.{Member, Cluster}
@@ -48,6 +62,9 @@ object TerminalNodeSample extends App with ClusterNode with DroneCommands {
     case "moveto" :: x :: y :: z :: Nil =>
       sendToMember(memberId)(moveTo(x.toFloat, y.toFloat, z.toFloat))
 
+    case "direction" :: x :: y :: z :: Nil =>
+      sendToMember(memberId)(moveTo(0, 0, 0, x.toFloat, y.toFloat, z.toFloat))
+
     case "where" :: Nil =>
       println( askMember(memberId)("where are you man?"))
 
@@ -90,7 +107,7 @@ object TerminalNodeSample extends App with ClusterNode with DroneCommands {
     case "moveby_g" :: dx :: dy :: dz :: Nil =>
       member ! MoveByGlobal(dx.toLong, dy.toLong, dz.toFloat)
 
-    case "by" :: Nil =>
+    case "bye" :: Nil =>
       handler = startHandler
       intro = "> "
 
@@ -106,10 +123,11 @@ object TerminalNodeSample extends App with ClusterNode with DroneCommands {
         |
         |  Next commands works only after cluster node selected with 'use x'
         |
-        | ping         - ping node (node mast return 'Pong')
-        | where        - ask drone for physical position
-        | moveto X Y Z - tell drone move to new position relative to current
-        | by           - stop working with current node
+        | ping            - ping node (node mast return 'Pong')
+        | where           - ask drone for physical position
+        | moveto X Y Z    - tell drone move to new position relative to current
+        | direction X Y Z - set vector of movement
+        | bye             - stop working with current node
         |
       """.stripMargin)
 

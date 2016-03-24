@@ -1,3 +1,17 @@
+/*
+* Copyright 2015-2016 Pragmukko Project [http://github.org/pragmukko]
+* Licensed under the Apache License, Version 2.0 (the "License"); you may not
+* use this file except in compliance with the License. You may obtain a copy of
+* the License at
+*
+*    [http://www.apache.org/licenses/LICENSE-2.0]
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations under
+* the License.
+*/
 package actors
 
 import actors.Messages._
@@ -32,7 +46,7 @@ class WebSocketActor(memberId: String) extends Actor with ActorLogging {
 }
 class SseActor(memberId: String) extends MediatedTelemetryPublisherActor("SSE", msg => MAVlinkJsonSerrializer.MAVLink2Json(msg.message))(memberId)
 
-class WsActor (memberId: String) extends MediatedTelemetryPublisherActor("WS", msg => TextMessage(MAVlinkJsonSerrializer.MAVLink2Json(msg.message).toString()))(memberId)
+class WsActor (manager:ActorRef, memberId: String) extends TelemetryPublisherActor("WS", msg => TextMessage(MAVlinkJsonSerrializer.MAVLink2Json(msg.message).toString()))(manager, memberId)
 
 class SinkActor(memberId: String) extends Actor with ActorLogging {
 

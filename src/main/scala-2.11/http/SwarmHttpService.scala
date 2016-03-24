@@ -1,3 +1,17 @@
+/*
+* Copyright 2015-2016 Pragmukko Project [http://github.org/pragmukko]
+* Licensed under the Apache License, Version 2.0 (the "License"); you may not
+* use this file except in compliance with the License. You may obtain a copy of
+* the License at
+*
+*    [http://www.apache.org/licenses/LICENSE-2.0]
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations under
+* the License.
+*/
 package http
 
 import actors._
@@ -69,7 +83,7 @@ class SwarmHttpService(managerOpt: Option[ActorRef] = None)(implicit val system:
   implicit val mlTelemetryListMarshaller = Marshaller.opaque { mlts: List[MavLinkTelemetry] => HttpResponse(OK, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, mlts.map(mlt=>s"${mlt.message} [${mlt.memberId}]").mkString("\n")))  }
 
   implicit val memberListMarshaller = Marshaller.opaque { members: List[Member] =>
-    val js = members.map(member => s"""{"id":"${member.id.getOrElse("")}", "address":"${member.address.toString}"}""").mkString(",")
+    val js = members.map(member => s"""{"id":"${member.id.getOrElse(member.roles.headOption.getOrElse(""))}", "address":"${member.address.toString}"}""").mkString(",")
     HttpResponse(OK, entity = HttpEntity(ContentTypes.`application/json`, s"[$js]" ))
   }
 
@@ -93,8 +107,8 @@ class SwarmHttpService(managerOpt: Option[ActorRef] = None)(implicit val system:
       path ("ws" / Segment) { memberId =>
         get {
           optionalHeaderValueByType[UpgradeToWebsocket]() {
-            case Some(upgrade) =>
-              val source = Source.actorPublisher[Message](Props(classOf[WsActor], memberId))
+            case Some(upgrade) if managerOpt.isDefined =>
+              val source = Source.actorPublisher[Message](Props(classOf[WsActor], managerOpt.get, memberId))
               val sinkActor = system.actorOf(Props(classOf[WebSocketActor], memberId))
               val sink = Sink.actorRef(sinkActor, OnComplete)
 
