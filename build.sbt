@@ -19,6 +19,8 @@ version := "1.2.12"
 
 scalaVersion := "2.11.7"
 
+excludeFilter in unmanagedSources := HiddenFileFilter || "licenseAppender.scala"
+
 artifact in (Compile, assembly) := {
   val art = (artifact in (Compile, assembly)).value
   art.copy(`classifier` = Some("assembly"))
