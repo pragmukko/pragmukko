@@ -23,3 +23,7 @@ Usage:
   5) Go to http://localhost:9000/ - WEB UI 
   
   6) ./stop.sh                    - Stop all		 	
+
+
+Demo:
+ https://youtu.be/UVX4xs2VpM4
