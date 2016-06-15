@@ -23,7 +23,7 @@ import akka.cluster.pubsub.DistributedPubSubMediator.Send
 import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
 import scala.collection.JavaConversions._
-import scala.concurrent.Await
+import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 import akka.pattern._
 
@@ -44,19 +44,21 @@ trait ClusterNode extends ConfigProvider {
 
   SwarmDiscovery.discoverAndJoin()(system, config)
 
-  val mediator = DistributedPubSub(system).mediator
+  val psMediator = DistributedPubSub(system).mediator
 
   def listMembers = cluster.state.getMembers.toList
+
+  def members = cluster.state.getMembers.toList
 
   def listMemberIds = cluster.state.getMembers.flatMap { _.id}
 
   def member(index:Int) = {
-    val path = listMembers(index).address.toString + "/user/*"
+    val path = members(index).address.toString + "/user/*"
     system.actorSelection(path)
   }
 
   def embedded(index:Int) = {
-    val member = listMembers(index)
+    val member = members(index)
     val path = s"${member.address.toString}/user/embedded.${member.id.get}"
     Await.result(system.actorSelection(path).resolveOne, 2 second)
   }
@@ -66,7 +68,7 @@ trait ClusterNode extends ConfigProvider {
     Await.result(system.actorSelection(path).resolveOne, 2 second)
   }
 
-  implicit class SyncUtils(m:ActorRef){
+  implicit class SyncUtils(m:ActorRef) {
     def ??(msg:Any)(implicit errHandler:Throwable => Any = th => th.toString()) : Any = {
       Try( Await.result( m ? msg, duration) ) match {
         case Success(x) => x
@@ -75,12 +77,26 @@ trait ClusterNode extends ConfigProvider {
     }
   }
 
+  implicit class MemberListImplicits(membersList:List[Member]) {
+    def \\(name:String) : Option[Member] = membersList.find(m => m.id.map( id => id.contains(name)).getOrElse(false))
+  }
+
+  implicit class MemberImplicits(memberOpt:Option[Member]) {
+    def ?(msg:Any) : Future[Any] = memberOpt match {
+      case Some(m) =>
+        val path = m.address.toString + "/user/*"
+        system.actorSelection(path).ask(msg)
+
+      case None => Future.failed(new Exception("Not member with such Id"))
+    }
+  }
+
   def sendToMember(memberId: String)(msg: Any) = {
-    mediator ! Send(s"/user/embedded.$memberId", msg, true)
+    psMediator ! Send(s"/user/embedded.$memberId", msg, true)
   }
 
   def askMember(memberId: String)(msg: Any): Any = {
-    Await.result(mediator ? Send(s"/user/embedded.$memberId", msg, true), duration)
+    Await.result(psMediator ? Send(s"/user/embedded.$memberId", msg, true), duration)
   }
 }
 

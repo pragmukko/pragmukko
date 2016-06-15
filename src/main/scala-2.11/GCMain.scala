@@ -17,7 +17,7 @@ import actors.Messages.{MavLinkTelemetry, Start}
 import akka.actor.ActorRef
 import akka.cluster.ClusterEvent.MemberUp
 import api.Channel
-import builders.GRoundControlNode
+import builders.PragmaCap
 import mavlink.pixhawk.{DronePositionLocal, TelemetryBatch, DroneCommands}
 import scala.concurrent.duration._
 
@@ -26,7 +26,7 @@ import scala.concurrent.duration._
  */
 object GCMain extends App {
 
-  GRoundControlNode
+  PragmaCap
     .build()
     .addExtention[DroneControlExt]
     .start()

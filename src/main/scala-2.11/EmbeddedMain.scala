@@ -16,7 +16,7 @@ import actors.BaseEmbeddedActor
 import actors.Messages._
 import akka.actor.{Actor, ActorRef}
 import akka.cluster.pubsub.DistributedPubSubMediator.{CurrentTopics, GetTopics}
-import builders.EmbeddedNode
+import builders.Pragma
 import mavlink.pixhawk.Ping
 import mavlink.pixhawk._
 
@@ -28,7 +28,7 @@ object EmbeddedMain extends App {
   @volatile var lastKnownLocalPosition:Option[PositionLocal] = None
   @volatile var lastKnownGlobalPosition:Option[PositionGlobal] = None
 
-  EmbeddedNode {
+  Pragma {
     ctx => {
 
       case Start =>

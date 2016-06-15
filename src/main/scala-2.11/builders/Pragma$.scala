@@ -22,7 +22,7 @@ import utils.ConfigProvider
 /**
  * Created by max on 11/6/15.
  */
-trait EmbeddedNode extends ConfigProvider {
+trait Pragma extends ConfigProvider {
 
   type ReceiverType = BaseEmbeddedActor => PartialFunction[Any, Unit]
 
@@ -68,9 +68,9 @@ trait EmbeddedNode extends ConfigProvider {
   }
 
   def apply() = {
-    EmbeddedNode.builder().start()
+    Pragma.builder().start()
   }
 
 }
 
-object EmbeddedNode extends EmbeddedNode
+object Pragma extends Pragma

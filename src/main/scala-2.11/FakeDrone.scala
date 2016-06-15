@@ -15,7 +15,7 @@
 import actors.BaseEmbeddedActor
 import actors.Messages.{DevDiscover, MavLinkTelemetry, GCDiscover}
 import akka.actor.{ActorRef, Actor}
-import builders.EmbeddedNode
+import builders.Pragma
 import mavlink.pixhawk.{SetPositionLocal, PositionLocal, DroneCommands}
 import scala.concurrent.duration._
 import scala.util.Random
@@ -25,7 +25,7 @@ import scala.util.Random
  */
 object FakeDrone extends App {
 
-  EmbeddedNode.builder().withEmbedded[FakeDroneActor].start()
+  Pragma.builder().withEmbedded[FakeDroneActor].start()
 
 }
 

@@ -22,7 +22,7 @@ import utils.ConfigProvider
 /**
  * Created by max on 11/5/15.
  */
-trait GRoundControlNode extends ConfigProvider {
+trait PragmaCap extends ConfigProvider {
 
   case class GCNodeBuilder[T <: GCExtentions](clusterName:String = config.getString("akka-sys-name"),
                            restEndpoint:Boolean = true,
@@ -69,4 +69,4 @@ trait GRoundControlNode extends ConfigProvider {
 
 }
 
-object GRoundControlNode extends GRoundControlNode
+object PragmaCap extends PragmaCap

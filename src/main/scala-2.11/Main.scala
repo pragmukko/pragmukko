@@ -16,7 +16,7 @@
 
 import actors.ClientActor
 import akka.actor.{ActorSystem, Props}
-import builders.{WebNode, EmbeddedNode, GRoundControlNode}
+import builders.{WebNode, Pragma, PragmaCap}
 import utils.ConfigProvider
 
 
@@ -34,12 +34,12 @@ object Main extends App with ConfigProvider {
 
   def initEmbeddedRole() = {
     println("Init embedded actor")
-    EmbeddedNode()
+    Pragma()
   }
 
   def initManagerRole() = {
     println("Init manager actor")
-    GRoundControlNode(restEndpoint = true)
+    PragmaCap(restEndpoint = true)
     //WebNode()
   }
 

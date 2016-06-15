@@ -1,0 +1,246 @@
+<html>
+<head>
+    
+    <script src="jquery.js"></script>
+    <script src="bootstrap.js"></script>
+    <script src="vector.js"></script>
+
+    <link href="bootstrap.css" rel="stylesheet">
+    
+</head>
+    
+<body>
+    
+    <canvas class='stage'> </canvas>
+    
+</body>
+    
+<script>
+    
+    function authority() {
+        //return window.location.host
+        return 'localhost:9000'
+    }
+    
+    DataReader.fac = 1;
+    DataReader.maxX = 0; 
+    DataReader.maxY = 0; 
+    DataReader.fx = undefined; 
+    DataReader.fy = undefined;
+    
+    function DataReader(id, cnv_selector, path_color) {
+                
+            var socket, drawCicle = false;
+                
+            var canvas = $(cnv_selector)[0];
+            var ctx = canvas.getContext("2d");
+                
+                
+            var canvasCenterY = canvas.height / 2, canvasCenterX = canvas.width / 2,
+                padding = 0, minDistance = 5;
+                
+            drawCicle = true;
+            console.log("ws://" + authority() + "/ws/" + id)
+            socket = new WebSocket("ws://" + authority() + "/ws/" + id + '?dd=' + new Date().getTime());
+                
+            var data = [];
+        
+            socket.onerror = function(err) {
+                console.log(err);
+            }
+                 
+            socket.onmessage = function(msg) {
+                canvasCenterY = canvas.height / 2;
+                canvasCenterX = canvas.width / 2;
+                
+                var jsObj = JSON.parse(msg.data);
+                if (jsObj.MAVType != "msg_local_position_ned") {
+                    return;
+                }
+                    
+                if (DataReader.fx == undefined) {
+                    DataReader.fx = jsObj.x;
+                }
+                    
+                if (DataReader.fy == undefined) {
+                    DataReader.fy = jsObj.y;
+                }
+                    
+                var xy = {
+                    x: jsObj.x - DataReader.fx,
+                    y: jsObj.y - DataReader.fy
+                }
+                    
+                
+                if ( Math.abs(xy.x) > DataReader.maxX ) {
+                    DataReader.maxX = Math.abs(xy.x);
+                }
+                    
+                if (Math.abs(xy.y) > DataReader.maxY) {
+                    DataReader.maxY = Math.abs(xy.y)
+                }
+                    
+                DataReader.fac = Math.abs((canvasCenterY - padding) / Math.max(DataReader.maxX, DataReader.maxY));
+                    
+                data.push(xy);
+            }
+            
+            //var findOrto = function(v) {
+            //    var y = 
+            //}
+          
+            var drawCopter = function(ctx, last, preLast) {
+               /* var v0 = new Vector(last.x, last.y);
+                var v1 = new Vector(preLast.x, preLast.y);
+                    
+                var direction = v0.subtract(v1);
+                var d_unit = direction.unit().multiply(10);
+                var orto = new Vector(d_unit.y, -d_unit.x);
+                    
+                [
+                    v0.add(orto),
+                    v0.add(orto.negative()),
+                    v0.add(d_unit).add(orto),
+                    v0.add(d_unit).add(orto.negative)
+                ].forEach(function(p) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 10,0,2*Math.PI);
+                    ctx.fillStyle = path_color;
+                    ctx.fill();
+                });*/
+                
+                ctx.fillStyle = '#' + path_color;
+                ctx.fillRect(last.x - 5, last.y - 5, 10, 10);
+                ctx.fillStyle = '#888888';
+                ctx.font = "14px Arial";
+                ctx.fillText(id, last.x + 10, last.y + 10)
+                    
+            }
+                
+                
+            this.plot = function() {
+                if(data.length < 2) {
+                    return;
+                }
+                        
+                var acumulator = [];
+                data = data.reduce(function(acc, item) {
+                    if (acc.length == 0) {
+                        acc.push(item);
+                        return acc;
+                    }
+                    var last = acc[acc.length - 1];
+                    if ( (Math.abs(item.x - last.x)) >= (minDistance / DataReader.fac) ||
+                            (Math.abs(item.y - last.y)) >= (minDistance / DataReader.fac) 
+                        ) {
+                        acc.push(item);
+                    }
+                    return acc;
+                }, acumulator);                   
+                var plotData = data.map(function(item) {
+                    return { 
+                        x: (item.x * DataReader.fac) + canvasCenterX, 
+                        y: (item.y * DataReader.fac) + canvasCenterY
+                    } 
+                });
+                var pathBegin = plotData[0]
+                ctx.beginPath();
+                ctx.moveTo(pathBegin.x, pathBegin.y);
+                for (var i = 1; i < plotData.length; i++ ) {
+                    ctx.lineTo(plotData[i].x, plotData[i].y);
+                }
+                ctx.strokeStyle = '#' + path_color;
+                ctx.stroke();
+                
+                if(data.length < 2) {
+                    return;
+                }
+                        
+                
+                var last = plotData[plotData.length - 1];
+                var preLast = plotData[plotData.length - 2];
+                
+                drawCopter(ctx, last, preLast);
+        }
+        
+        this.stop = function() {  
+            console.log("Close " + id)
+            socket.close();
+        }
+        
+        this.getId = function() { return id; }
+        
+    }
+    
+    function randomColor() {
+        //var r = Math.floor(Math.random() * 256).toString(16);
+        //var g = Math.floor(Math.random() * 256).toString(16);
+        //var b = Math.floor(Math.random() * 256).toString(16);
+        //return "#" + r + g + b;
+        return ('00000'+(Math.random()*(1<<24)|0).toString(16)).slice(-6)
+    }
+    
+    window.requestAnimFrame = (function() {
+        return  window.requestAnimationFrame   ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame    ||
+            function( callback ){
+                window.setTimeout(callback, 1000 / 60);
+            };
+    })();
+            
+    
+    $(function() {
+        var canvas = $('.stage')[0];
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize, false); 
+        resize();
+        
+        var readers = [];
+        
+        function refreshDeviceList() {
+            $.getJSON("http://" + authority() + "/cmd/list", function(data) {
+                
+                var old_ids = readers.map(function(item) {  return item.getId(); } );
+                var new_ids = data.map(function(item) { return item.id; }).filter(function(id) { return id.substring(0, 3) === 'The' });
+                
+                var toRemove = $(old_ids).not(new_ids).get();
+                var toAdd = $(new_ids).not(old_ids).get();
+                
+                readers = readers.filter(function(item) { 
+                    if ($.inArray(item.getId(), toRemove) != -1) {
+                        item.stop();
+                        return false;
+                    } else {
+                        return true;
+                    }  
+                } );
+                var new_readers = toAdd.map(function(id) { return new DataReader(id, '.stage', randomColor())  } );
+                readers = readers.concat(new_readers);
+            });
+                
+            setTimeout(refreshDeviceList, 1000);
+        }
+        
+        refreshDeviceList();
+        
+        //var canvas = $('.stage')[0];
+        var ctx = canvas.getContext('2d');
+        
+        function plot() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            readers.forEach(function(item) { item.plot(); });
+            window.requestAnimFrame(arguments.callee);
+        }
+        
+        plot();
+            
+    });
+    
+        
+</script>
+    
+</html>
