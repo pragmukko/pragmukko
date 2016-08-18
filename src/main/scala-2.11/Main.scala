@@ -17,6 +17,7 @@
 import actors.ClientActor
 import akka.actor.{ActorSystem, Props}
 import builders.{WebNode, Pragma, PragmaCap}
+import extentions.web.FlyDashboard
 import utils.ConfigProvider
 
 
@@ -39,8 +40,7 @@ object Main extends App with ConfigProvider {
 
   def initManagerRole() = {
     println("Init manager actor")
-    PragmaCap(restEndpoint = true)
-    //WebNode()
+    PragmaCap.build().addExtention[FlyDashboard].start()
   }
 
   def initClientRole() = {

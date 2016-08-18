@@ -18,6 +18,7 @@ import akka.actor.ActorRef
 import akka.cluster.ClusterEvent.MemberUp
 import api.Channel
 import builders.PragmaCap
+import extentions.web.FlyDashboard
 import mavlink.pixhawk.{DronePositionLocal, TelemetryBatch, DroneCommands}
 import scala.concurrent.duration._
 
@@ -28,6 +29,7 @@ object GCMain extends App {
 
   PragmaCap
     .build()
+    .addExtention[FlyDashboard]
     .addExtention[DroneControlExt]
     .start()
 

@@ -12,38 +12,32 @@
 * License for the specific language governing permissions and limitations under
 * the License.
 */
-package http
+package extentions.web
 
-import actors._
 import actors.Messages._
-import akka.actor.{Cancellable, Props, ActorRef, ActorSystem}
+import actors._
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.cluster.Cluster
 import akka.cluster.pubsub.DistributedPubSub
-import akka.cluster.pubsub.DistributedPubSubMediator.{CurrentTopics, GetTopics, Send}
-import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Headers`, `Access-Control-Max-Age`, `Access-Control-Allow-Credentials`}
-import akka.http.scaladsl.model.ws.{TextMessage, UpgradeToWebsocket, Message}
+import akka.cluster.pubsub.DistributedPubSubMediator.Send
+import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Max-Age`}
+import akka.http.scaladsl.model.ws.{Message, UpgradeToWebsocket}
 import akka.http.scaladsl.server.{Directives, ExpectedWebsocketRequestRejection}
 import akka.stream.actor.ActorSubscriberMessage.OnComplete
 import akka.util.ByteString
-import de.heikoseeberger.akkasse.{MediaTypes, WithHeartbeats, ServerSentEvent, EventStreamMarshalling}
+import de.heikoseeberger.akkasse.{EventStreamMarshalling, ServerSentEvent}
 import utils.MemberUtils
 //import utils.sse.EventStreamTypedMarshalling
 
-import scala.concurrent.{Future, ExecutionContext}
-
 //import akka.http.scaladsl.server.directives.HeaderDirectives._
 //import akka.http.scaladsl.server.directives.RouteDirectives._
-import com.typesafe.config.Config
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.client.RequestBuilding
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.marshalling.{Marshaller, ToResponseMarshaller, ToResponseMarshallable}
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.unmarshalling._
-import akka.stream.{ ActorMaterializer, Materializer }
-import akka.stream.scaladsl.{ Flow, Sink, Source }
+import akka.http.scaladsl.model._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.{Sink, Source}
+import com.typesafe.config.Config
 import mavlink.MAVlinkJsonSerrializer
 import spray.json.{JsArray, JsValue, JsonParser, ParserInput}
 
@@ -61,10 +55,11 @@ class SwarmHttpService(managerOpt: Option[ActorRef] = None)(implicit val system:
 
   import akka.pattern.ask
   import akka.util.Timeout
+
   import scala.concurrent.duration._
   implicit val timeout = Timeout(5 seconds)
-  import akka.cluster.Member
   import MemberUtils._
+  import akka.cluster.Member
 
   override val corsAllowOrigins: List[String] = List("*")
 

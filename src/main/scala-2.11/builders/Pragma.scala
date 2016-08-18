@@ -31,19 +31,19 @@ trait Pragma extends ConfigProvider {
     hardwareGateActor:Option[Class[HW]]) {
 
     def start() = {
-    val system = ActorSystem(config.getString("akka-sys-name"), config)
-    val ref = system.actorOf(Props(embeddedActor, hardwareGateActor), s"embedded.${config.getString("member-id")}")
-    receiver foreach {
-      rcvr =>
-        ref ! ExtReceiver(rcvr)
-        ref ! Start
-    }
+      val system = ActorSystem(config.getString("akka-sys-name"), config)
+      val ref = system.actorOf(Props(embeddedActor, hardwareGateActor), s"embedded.${config.getString("member-id")}")
+      receiver foreach {
+        rcvr =>
+          ref ! ExtReceiver(rcvr)
+          ref ! Start
+      }
 
-    if (config.getBoolean("discovery.start-responder")) {
-      SwarmDiscovery.startResponder(system, config)
-      //system.actorOf(Props[UdpDiscoveryResponder], "discovery-responder")
+      if (config.getBoolean("discovery.start-responder")) {
+        SwarmDiscovery.startResponder(system, config)
+        //system.actorOf(Props[UdpDiscoveryResponder], "discovery-responder")
+      }
     }
-  }
 
     def withEmbedded[T <: BaseEmbeddedActor](implicit tag : reflect.ClassTag[T]) = {
       EmbeddedNodeBuilder(this.receiver, tag.runtimeClass.asInstanceOf[Class[T]], this.hardwareGateActor)

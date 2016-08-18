@@ -16,7 +16,7 @@ package builders
 
 import actors.SwarmDiscovery
 import akka.actor.{Props, ActorSystem, Actor}
-import http.SwarmHttpService
+import extentions.web.SwarmHttpService
 import utils.ConfigProvider
 
 /**
